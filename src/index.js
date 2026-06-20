@@ -26,6 +26,7 @@ let gerandoCodigo = false
 // Número pendente de pareamento — fica guardado entre reconexões
 // até o handshake terminar (connection === 'open')
 let numeroPendente = null
+let fechandoManualmente = false
 
 // ─── Conecta (ou reconecta) ao WhatsApp ────────────────────────
 async function conectar() {
@@ -72,8 +73,17 @@ async function conectar() {
   sock.ev.on('connection.update', async (update) => {
     const { connection, lastDisconnect } = update
 
-    if (connection === 'close') {
+   if (connection === 'close') {
       conectado = false
+
+      // Esse close foi causado por nós mesmos (sock.end() manual antes
+      // de pedir um pareamento novo) — não reconecta aqui, quem está
+      // chamando conectar() já vai cuidar disso.
+      if (fechandoManualmente) {
+        fechandoManualmente = false
+        return
+      }
+
       const codigoErro = new Boom(lastDisconnect?.error)?.output?.statusCode
       const motivo = DisconnectReason
 
@@ -81,9 +91,6 @@ async function conectar() {
         console.log('\n❌ Sessão encerrada. Apague a pasta ./sessions para reconectar.')
         numeroPendente = null
       } else {
-        // Reconecta sempre — seja pareamento em andamento (handshake)
-        // ou queda normal de conexão. O número pendente não é reenviado
-        // porque a função conectar() só pede código se !jaRegistrado.
         console.log('\n🔄 Reconectando...')
         setTimeout(() => conectar(), 1000)
       }
@@ -152,11 +159,14 @@ const server = http.createServer(async (req, res) => {
           return
         }
 
-        numeroPendente = numeroLimpo
+          numeroPendente = numeroLimpo
 
         // Fecha o socket atual antes de iniciar um pareamento novo,
-        // pra não acumular conexões abertas
+        // pra não acumular conexões abertas. Marca a flag pra
+        // ignorar a reconexão automática desse close específico.
+        fechandoManualmente = true
         try { sockAtual?.end?.(undefined) } catch {}
+        await new Promise(r => setTimeout(r, 300))
         await conectar()
 
         // Espera o código ser gerado (até 15s)
