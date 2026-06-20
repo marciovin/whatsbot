@@ -21,6 +21,7 @@ export async function handleMessage(sock, msg) {
 
     const jid = msg.key.remoteJid
     const isGrupo = jid.endsWith('@g.us')
+    console.log('🔍 JID recebido:', jid) 
 
     // Grupos: só responde comandos, sem fluxo de pedido
     if (isGrupo) {

@@ -84,6 +84,20 @@ async function conectar() {
 // ─── Servidor HTTP: mostra o QR code numa página ────────────────
 const server = http.createServer(async (req, res) => {
   if (req.method === 'GET' && req.url === '/') {
+    // Rota temporária para resetar a sessão (remover depois de usar!)
+  if (req.method === 'GET' && req.url === '/reset-sessao-temp-2026') {
+    const fs = await import('fs')
+    try {
+      fs.rmSync('./sessions', { recursive: true, force: true })
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
+      res.end('<h1>✅ Sessão apagada! Reinicie o serviço no Render.</h1>')
+    } catch (err) {
+      res.writeHead(500)
+      res.end('Erro: ' + err.message)
+    }
+    return
+  }
+
     if (conectado) {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
       res.end(`
