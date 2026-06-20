@@ -4,6 +4,8 @@ const OWNER = process.env.OWNER_NUMBER
   ? `${process.env.OWNER_NUMBER}@s.whatsapp.net`
   : null
 
+const PIX_KEY = process.env.PIX_KEY ?? 'e474741f-5351-4592-8549-6bab0d00ed92'
+
 // ─── Inicia o fluxo ────────────────────────────────────────────
 export async function iniciarPedido({ sock, jid, msg }) {
   setEstado(jid, 'marmitex')
@@ -20,7 +22,7 @@ export async function iniciarPedido({ sock, jid, msg }) {
 // ─── Processa a resposta de acordo com a etapa atual ───────────
 export async function processarFluxo({ sock, jid, msg, texto }) {
   const estado = getEstado(jid)
-  if (!estado) return false // sem fluxo ativo, ignora
+  if (!estado) return false
 
   const resposta = texto.trim()
 
@@ -34,11 +36,28 @@ export async function processarFluxo({ sock, jid, msg, texto }) {
     }
 
     const tamanho = resposta === '20' ? 'P (R$ 20,00)' : 'G (R$ 25,00)'
-    setEstado(jid, 'endereco', { marmitex: tamanho })
+    setEstado(jid, 'observacao', { marmitex: tamanho })
 
     await sock.sendMessage(jid, {
       text:
         `✅ Marmitex *${tamanho}* selecionada!\n\n` +
+        `📝 Há alguma observação? _(ex: sem feijão, sem cebola)_\n\n` +
+        `_Se não houver, responda *não*._`,
+    }, { quoted: msg })
+
+    return true
+  }
+
+  // ETAPA 2 — observação
+  if (estado.etapa === 'observacao') {
+    const obs = ['nao', 'não', 'n', 'nenhuma', 'sem observacao', 'sem observação'].includes(
+      resposta.toLowerCase()
+    ) ? null : resposta
+
+    setEstado(jid, 'endereco', { observacao: obs })
+
+    await sock.sendMessage(jid, {
+      text:
         `📍 Agora me informe seu *endereço completo* para entrega:\n` +
         `_Rua, número, bairro e complemento (se houver)._`,
     }, { quoted: msg })
@@ -46,7 +65,7 @@ export async function processarFluxo({ sock, jid, msg, texto }) {
     return true
   }
 
-  // ETAPA 2 — endereço
+  // ETAPA 3 — endereço
   if (estado.etapa === 'endereco') {
     if (resposta.length < 10) {
       await sock.sendMessage(jid, {
@@ -55,29 +74,42 @@ export async function processarFluxo({ sock, jid, msg, texto }) {
       return true
     }
 
-    setEstado(jid, 'confirmado', { endereco: resposta })
+    setEstado(jid, 'finalizado', { endereco: resposta })
     const dados = getEstado(jid).dados
 
-    const resumo =
-      `✅ *Pedido recebido!*\n\n` +
-      `🍱 Marmitex: *${dados.marmitex}*\n` +
-      `📍 Endereço: ${dados.endereco}\n\n` +
-      `Em breve entraremos em contato para confirmar. 😊`
+    // Mensagem 1: resumo do pedido
+    await sock.sendMessage(jid, {
+      text:
+        `✅ *Pedido recebido!*\n\n` +
+        `🍱 Marmitex: *${dados.marmitex}*\n` +
+        (dados.observacao ? `📝 Obs: ${dados.observacao}\n` : '') +
+        `📍 Endereço: ${dados.endereco}\n\n` +
+        `💳 Pague via Pix para confirmar:`,
+    }, { quoted: msg })
 
-    await sock.sendMessage(jid, { text: resumo }, { quoted: msg })
+    // Mensagem 2: só a chave Pix, separada e fácil de copiar
+    await sock.sendMessage(jid, {
+      text: PIX_KEY,
+    })
 
-    // Notifica o dono se configurado no .env
+    // Mensagem 3: instrução final
+    await sock.sendMessage(jid, {
+      text: `_Após o pagamento, envie o comprovante aqui. Em breve confirmaremos seu pedido!_ 🙏`,
+    })
+
+    // Notifica o dono
     if (OWNER) {
       await sock.sendMessage(OWNER, {
         text:
           `🔔 *Novo pedido recebido!*\n\n` +
           `📞 Cliente: wa.me/${jid.split('@')[0]}\n` +
           `🍱 Marmitex: ${dados.marmitex}\n` +
-          `📍 Endereço: ${dados.endereco}`,
+          (dados.observacao ? `📝 Obs: ${dados.observacao}\n` : '') +
+          `📍 Endereço: ${dados.endereco}\n\n` +
+          `⏳ Aguardando comprovante Pix.`,
       })
     }
 
-    // Limpa o estado após 5 min (permite novo pedido)
     setTimeout(() => limparEstado(jid), 5 * 60 * 1000)
 
     return true
