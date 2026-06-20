@@ -19,6 +19,10 @@ let conectado = false
 let qrAtual = null
 
 async function conectar() {
+    // Garante que a pasta de sessões existe antes de usar
+  const fs = await import('fs')
+  fs.mkdirSync('./sessions', { recursive: true })
+
   const { state, saveCreds } = await useMultiFileAuthState('./sessions')
   const { version } = await fetchLatestBaileysVersion()
 
