@@ -97,16 +97,18 @@ export async function processarFluxo({ sock, jid, msg, texto }) {
       text: `_Após o pagamento, envie o comprovante aqui. Em breve confirmaremos seu pedido!_ 🙏`,
     })
 
-    // Notifica o dono
+    // Notifica o dono — SEM link wa.me, pois pode ser um LID e não um
+    // número de telefone real. Quem atende responde direto encaminhando
+    // a mensagem do cliente, ou abre a conversa que já existe no WhatsApp.
     if (OWNER) {
       await sock.sendMessage(OWNER, {
         text:
           `🔔 *Novo pedido recebido!*\n\n` +
-          `📞 Cliente: wa.me/${jid.split('@')[0]}\n` +
           `🍱 Marmitex: ${dados.marmitex}\n` +
           (dados.observacao ? `📝 Obs: ${dados.observacao}\n` : '') +
           `📍 Endereço: ${dados.endereco}\n\n` +
-          `⏳ Aguardando comprovante Pix.`,
+          `⏳ Aguardando comprovante Pix.\n` +
+          `_Veja a conversa do pedido na lista de conversas do WhatsApp._`,
       })
     }
 
