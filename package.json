@@ -1,6 +1,7 @@
 {
   "name": "whatsbot",
   "version": "1.0.0",
+  "qrcode": "^1.5.4",
   "description": "WhatsApp Bot com Baileys + QR Code",
   "main": "src/index.js",
   "type": "module",
